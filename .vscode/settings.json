@@ -1,0 +1,38 @@
+{
+    "code-runner.runInTerminal": true,
+    "editor.wordWrap": "on",
+    "files.autoSave": "afterDelay",
+
+    "jdk.jdkhome": "C:\\Program Files\\Java\\jdk-26.0.2.1",
+
+    "jdk.telemetry.enabled": false,
+    "redhat.telemetry.enabled": false,
+
+    "java.configuration.runtimes": [
+        {
+            "name": "JavaSE-26",
+            "path": "C:\\Program Files\\Java\\jdk-26.0.2.1",
+            "default": true
+        }
+    ],
+
+    "java.project.sourcePaths": [
+        "src"
+    ],
+
+    "java.project.referencedLibraries": [
+        "c:\\Users\\garre\\OneDrive\\Documents\\javafx-sdk-26.0.2\\lib\\javafx.base.jar",
+        "c:\\Users\\garre\\OneDrive\\Documents\\javafx-sdk-26.0.2\\lib\\javafx.controls.jar",
+        "c:\\Users\\garre\\OneDrive\\Documents\\javafx-sdk-26.0.2\\lib\\javafx.fxml.jar",
+        "c:\\Users\\garre\\OneDrive\\Documents\\javafx-sdk-26.0.2\\lib\\javafx.graphics.jar",
+        "c:\\Users\\garre\\OneDrive\\Documents\\javafx-sdk-26.0.2\\lib\\javafx.media.jar",
+        "c:\\Users\\garre\\OneDrive\\Documents\\javafx-sdk-26.0.2\\lib\\javafx.swing.jar",
+        "c:\\Users\\garre\\OneDrive\\Documents\\javafx-sdk-26.0.2\\lib\\javafx.web.jar",
+        "c:\\Users\\garre\\OneDrive\\Documents\\javafx-sdk-26.0.2\\lib\\javafx-swt.jar",
+        "c:\\Users\\garre\\OneDrive\\Documents\\javafx-sdk-26.0.2\\lib\\jdk.jsobject.jar",
+        "c:\\Users\\garre\\OneDrive\\Documents\\javafx-sdk-26.0.2\\lib\\jfx.incubator.input.jar",
+        "c:\\Users\\garre\\OneDrive\\Documents\\javafx-sdk-26.0.2\\lib\\jfx.incubator.richtext.jar"
+    ],
+
+    "git.openRepositoryInParentFolders": "always"
+}
