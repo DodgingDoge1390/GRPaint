@@ -1,3 +1,5 @@
+GITHUB LINK - https://github.com/DodgingDoge1390/ActualGRPaint
+
 Garrett's GRPaint Version 0.0.2 - 09/14/2026
 New Features:
 - New UI elements such as New Title and Icon
