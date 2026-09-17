@@ -9,6 +9,7 @@ import javafx.scene.layout.BorderPane; // JavaFX library for borderPane organize
 import javafx.scene.layout.HBox; // JavaFX library for HBox puts controls next to each other
 import javafx.scene.paint.Color; // JavaFX libray for color
 import javafx.scene.image.Image; // JavaFX library for the Image
+import javax.xml.namespace.QName;
 
 
 public class Drawing { //start of the class for tools
@@ -19,13 +20,15 @@ public class Drawing { //start of the class for tools
     private BorderPane drawingPane; // Layout that holds everything
     private String currentTool = ""; // Holder for the current tool which is represented as nothing right now
     private boolean lineStarted = false; // Boolean for the linestarted 
+    private Runnable onChange;
     
     public void setTool(String tool) { //method for constructing the tool
         currentTool = tool; //sets the current tool to toll
         lineStarted = false; //sets let started to false
     }
 
-    public Drawing(double width, double height) { //takes the width and the height of the drawing
+    public Drawing(double width, double height, Runnable onChange) { //takes the width and the height of the drawing
+        this.onChange = onChange; //sets the onChange 
         canvas = new Canvas(width, height); //creates a canvas for the drawing of the width and height
 
         gc = canvas.getGraphicsContext2D(); //gets the graphicsContext for the canvas and sets it to gc
@@ -69,7 +72,7 @@ public class Drawing { //start of the class for tools
                     e.getX(), //gets new x
                     e.getY() //and new Y
                 ); //of line stroke
-
+                onChange.run(); //tells autosave the drawing changed
                 startX = e.getX(); //creates a new startX 
                 startY = e.getY(); //creates a new startY
             } //end of if
@@ -88,6 +91,7 @@ public class Drawing { //start of the class for tools
                         e.getX(), //new x
                         e.getY() //new y
                     ); //end of stroke
+                    onChange.run(); //tells autosave the drawing changed
                     lineStarted = false; //sets line started to false
                 } //end of else
             } //end of if
@@ -106,6 +110,7 @@ public class Drawing { //start of the class for tools
             canvas.getWidth(), //gets width
             canvas.getHeight() //gets height
         ); //end of clear
+        onChange.run(); //tells autosave the drawing changed
     } //end of refresh
 
     public BorderPane getDrawingPane() { //get drawingpane method
