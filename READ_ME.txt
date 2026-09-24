@@ -1,4 +1,22 @@
 GITHUB LINK - https://github.com/DodgingDoge1390/ActualGRPaint
+Garrett's GRPaint Version 0.0.3 - 0/9/24/2026
+New Features:
+- Tabs
+- Shapes
+- ColorGrabber
+- Eraser
+- Dashed Lines for Shapes and Tools
+- Label for Width slider
+- Bug fixes
+- JavaDoc Commenting + a JavaPun
+
+Known Issues:
+- Blurry after adding more then two or three Shapes
+
+Expected next update:
+- AI implementation
+- More tools including marker
+- Cropping the image
 
 Garrett's GRPaint Version 0.0.2 - 09/14/2026
 New Features:
