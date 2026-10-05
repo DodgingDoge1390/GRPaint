@@ -1,4 +1,5 @@
-//I like my Java how I like my coffee, at home and brewed 
+//I like my Java how I like my coffee, at home and brewe
+
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.embed.swing.SwingFXUtils;
@@ -54,6 +55,7 @@ public class Paint extends Application {
         //Menubar and menus
         MenuBar menuBar = new MenuBar();
         Menu fileMenu = new Menu("File");
+        Menu editMenu = new Menu("Edit"); // NEW: undo, redo, clear, copy, paste
         Menu surpriseMenu = new Menu("Surprise");
         Menu closeMenu = new Menu("Close");
         Menu settingsMenu = new Menu("Settings");
@@ -75,12 +77,14 @@ public class Paint extends Application {
         MenuItem pencilItem = new MenuItem("Pencil");
         MenuItem colorGrabberItem = new MenuItem("Color Grabber");
         MenuItem eraserItem = new MenuItem("Eraser");
-        MenuItem squareItem = new MenuItem("Square");
-        MenuItem circleItem = new MenuItem("Circle");
-        MenuItem rectangleItem = new MenuItem("Rectangle");
-        MenuItem ellipseItem = new MenuItem("Ellipse");
-        MenuItem triangleItem = new MenuItem("Triangle");
-        MenuItem starItem = new MenuItem("Star");
+        MenuItem textItem = new MenuItem("Text");
+        MenuItem selectItem = new MenuItem("Select");
+        MenuItem moveItem = new MenuItem("Move Selection");
+        MenuItem undoItem = new MenuItem("Undo");
+        MenuItem redoItem = new MenuItem("Redo");
+        MenuItem copyItem = new MenuItem("Copy");
+        MenuItem pasteItem = new MenuItem("Paste");
+        MenuItem clearItem = new MenuItem("Clear Canvas");
 
         //Shortcuts for MenuItems
         openItem.setAccelerator(KeyCombination.keyCombination("Ctrl+O"));
@@ -90,17 +94,25 @@ public class Paint extends Application {
         surpriseItem.setAccelerator(KeyCombination.keyCombination("Ctrl+Shift+Alt+R"));
         closeItem.setAccelerator(KeyCombination.keyCombination("Ctrl+Q"));
         resizeItem.setAccelerator(KeyCombination.keyCombination("Ctrl+R"));
+        // NEW shortcuts
+        undoItem.setAccelerator(KeyCombination.keyCombination("Ctrl+Z"));
+        redoItem.setAccelerator(KeyCombination.keyCombination("Ctrl+Y"));
+        copyItem.setAccelerator(KeyCombination.keyCombination("Ctrl+C"));
+        pasteItem.setAccelerator(KeyCombination.keyCombination("Ctrl+V"));
+        clearItem.setAccelerator(KeyCombination.keyCombination("Ctrl+Shift+N"));
 
         //Puts MenuItems in the Menu
         fileMenu.getItems().addAll(openItem, saveItem, saveAsItem, newTabItem);
+        editMenu.getItems().addAll(undoItem, redoItem, copyItem, pasteItem, clearItem); // NEW
         surpriseMenu.getItems().addAll(surpriseItem);
         closeMenu.getItems().addAll(closeItem);
         settingsMenu.getItems().addAll(resizeItem, helpItem);
-        toolsMenu.getItems().addAll(lineItem, pencilItem, colorGrabberItem, eraserItem);
-        shapesMenu.getItems().addAll(squareItem, circleItem, rectangleItem, ellipseItem, triangleItem, starItem);
+        // CHANGED: added text, select, and move to the tools menu
+        toolsMenu.getItems().addAll(lineItem, pencilItem, colorGrabberItem, eraserItem, textItem, selectItem, moveItem);
 
         //Adds menus to menuBar
-        menuBar.getMenus().addAll(fileMenu, toolsMenu, shapesMenu, surpriseMenu, settingsMenu, closeMenu);
+        // CHANGED: editMenu added after fileMenu
+        menuBar.getMenus().addAll(fileMenu, editMenu, toolsMenu, surpriseMenu, settingsMenu, closeMenu);
 
         //When you click on the menuItem, the method is called
         openItem.setOnAction(e -> {addNewTab(); openImage(stage);});
@@ -120,12 +132,14 @@ public class Paint extends Application {
         lineItem.setOnAction(e -> currentTab().getDrawing().setTool("line"));
         colorGrabberItem.setOnAction(e -> currentTab().getDrawing().setTool("colorGrabber"));
         eraserItem.setOnAction(e -> currentTab().getDrawing().setTool("eraser"));
-        squareItem.setOnAction(e -> currentTab().getDrawing().setTool("square"));
-        circleItem.setOnAction(e -> currentTab().getDrawing().setTool("circle"));
-        rectangleItem.setOnAction(e -> currentTab().getDrawing().setTool("rectangle"));
-        ellipseItem.setOnAction(e -> currentTab().getDrawing().setTool("ellipse"));
-        triangleItem.setOnAction(e -> currentTab().getDrawing().setTool("triangle"));
-        starItem.setOnAction(e -> currentTab().getDrawing().setTool("star"));
+        textItem.setOnAction(e -> currentTab().getDrawing().setTool("text"));
+        selectItem.setOnAction(e -> currentTab().getDrawing().setTool("select"));
+        moveItem.setOnAction(e -> currentTab().getDrawing().setTool("move"));
+        undoItem.setOnAction(e -> currentTab().getDrawing().undo());
+        redoItem.setOnAction(e -> currentTab().getDrawing().redo());
+        copyItem.setOnAction(e -> currentTab().getDrawing().copySelection());
+        pasteItem.setOnAction(e -> currentTab().getDrawing().pasteSelection());
+        clearItem.setOnAction(e -> currentTab().getDrawing().refresh()); //refresh() already has the "are you sure" check
 
         //ImageView for the images and starts Autosave
         imageView = new ImageView();
@@ -274,6 +288,7 @@ public class Paint extends Application {
         Stage helpStage = new Stage();
         helpStage.setTitle("GRPaint Help");
 
+        // CHANGED: added the Edit menu, new tools, new shapes, and new shortcuts to the help text
         Label helpText = new Label(
             "GRPaint Help\n\n" +
             "File:\n" +
@@ -281,9 +296,19 @@ public class Paint extends Application {
             "Save - Saves the current image.\n" +
             "Save As - Saves the image as a new file.\n" +
             "New Tab - Opens a new blank canvas tab.\n\n" +
+            "Edit:\n" +
+            "Undo / Redo - Step backward or forward through your changes.\n" +
+            "Copy / Paste - Copies the selected piece. Paste drops it in the top left, drag it where you want.\n" +
+            "Clear Canvas - Wipes the canvas (asks first).\n\n" +
             "Tools:\n" +
-            "Line - Allows you to draw lines on the canvas.\n" +
-            "Pencil - Allows you to free flow your canvas.\n\n" +
+            "Line - Click twice to draw a line.\n" +
+            "Pencil - Allows you to free flow your canvas.\n" +
+            "Text - Click on the canvas and type the text to add.\n" +
+            "Select - Drag a box around part of the image.\n" +
+            "Move Selection - Drag the selected piece to move it.\n\n" +
+            "Shapes:\n" +
+            "Drag to draw. Triangle is a regular triangle, Right Triangle has a 90 degree corner.\n" +
+            "Polygon asks how many sides you want (3 or more).\n\n" +
             "Keyboard Shortcuts:\n" +
             "Ctrl + O - Open\n" +
             "Ctrl + S - Save\n" +
@@ -292,18 +317,27 @@ public class Paint extends Application {
             "Ctrl + Q - Close\n" +
             "Crtl + Shift + Alt + R - Suprise\n" +
             "Ctrl + R - Resize\n" +
+            "Ctrl + Z - Undo\n" +
+            "Ctrl + Y - Redo\n" +
+            "Ctrl + C - Copy\n" +
+            "Ctrl + V - Paste\n" +
+            "Ctrl + Shift + N - Clear Canvas\n" +
             "Resize: Insert any height or width you want as long as it isn't 0 or below.\n" +
             "Auto Save: After 30 seconds your project will be automatically saved if it isn't saved already.\n\n"
         );
 
-        helpText.setWrapText(true);
-        helpText.setStyle("-fx-font-size: 14px;");
 
-        VBox layout = new VBox(helpText);
-        layout.setSpacing(10);
+        // Put the help text inside a ScrollPane
+        ScrollPane scrollPane = new ScrollPane();
+        scrollPane.setContent(helpText);
 
-        Scene helpScene = new Scene(layout, 500, 500);
-        helpStage.setScene(helpScene);
+        // Allow the ScrollPane to resize the Label horizontally
+        scrollPane.setFitToWidth(true);
+
+        // Create the scene
+        Scene scene = new Scene(scrollPane, 500, 500);
+
+        helpStage.setScene(scene);
         helpStage.show();
     }
 

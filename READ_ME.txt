@@ -1,5 +1,22 @@
 GITHUB LINK - https://github.com/DodgingDoge1390/ActualGRPaint
-Garrett's GRPaint Version 0.0.3 - 0/9/24/2026
+Garrett's GRPaint Version 0.0.4 - 10/2/2026
+New Features:
+- Undo/Redo buttons
+- Able to select parts of the canvas and move it around and copy/paste 
+- Addes Polygons and Diamond Shapes
+- Added a Text Print Feature
+- Clear canvas with an alert
+- Fixed screen blurring with Shapes
+
+Known Issues:
+- Issues with AutoSave
+
+Future Updates:
+- More Shapes
+- Ability to Zoom Out
+- Cropping
+
+Garrett's GRPaint Version 0.0.3 - 09/24/2026
 New Features:
 - Tabs
 - Shapes

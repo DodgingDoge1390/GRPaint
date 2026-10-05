@@ -1,17 +1,29 @@
+import java.util.Optional;
+import javafx.scene.SnapshotParameters;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ColorPicker;
 import javafx.scene.control.Label;
+import javafx.scene.control.MenuButton;
+import javafx.scene.control.MenuItem;
 import javafx.scene.control.Slider;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
 import javafx.scene.image.Image;
 import javafx.scene.image.PixelReader;
 import javafx.scene.image.WritableImage;
+import javafx.scene.transform.Transform; 
+import javafx.stage.Screen;              
+import java.util.Stack;
+import javafx.scene.control.TextInputDialog;
+import javafx.scene.text.Font;
 
 /**
  * Public Class for the Drawing functionality in GRPaint
@@ -19,18 +31,34 @@ import javafx.scene.image.WritableImage;
  * when the user clicks on it
  */
 public class Drawing { //start of the class for tools
-    private Canvas canvas; // Canvas that the user draws on
-    private GraphicsContext gc; // GraphicsContext used to draw
-    private double startX; // X position where the mouse/shape started
-    private double startY; // Y position where the mouse/shape started
-    private BorderPane drawingPane; // Layout that holds everything
-    private String currentTool = ""; // Holder for the current tool
-    private String lastTool = "pencil"; // last non-colorGrabber tool, so grabbing a color hands control back to whatever tool (including a shape) was active
-    private boolean lineStarted = false; // Boolean for the linestarted
-    private boolean dashed = false; // whether outlines should be dashed
+    private Canvas canvas; 
+    private GraphicsContext gc; 
+    private double startX; 
+    private double startY; 
+    private BorderPane drawingPane; 
+    private String currentTool = ""; 
+    private String lastTool = "pencil"; 
+    private boolean lineStarted = false; 
+    private boolean dashed = false; 
     private ColorPicker colorPicker;
     private Label widthLabel;
-    private WritableImage shapeSnapshot; // canvas snapshot taken right before a shape starts, so we can redraw the live preview each drag
+    private WritableImage shapeSnapshot; 
+    private Stack<WritableImage> undoStack = new Stack<>();
+    private Stack<WritableImage> redoStack = new Stack<>();
+    private static final int MAX_UNDO = 50; // Max number of undo steps kept so snapshots don't eat all the memory
+    private int numberOfSides = 5; // Number of sides used by the regular polygon tool
+    private Canvas overlay; //Overlay canvas that only draws the dashed selection outline
+    private GraphicsContext overlayGc;
+    private WritableImage selectedImage;   // pixels currently selected
+    private double selX, selY, selW, selH; // position and size of the selection (in canvas units)
+    private double selStartX, selStartY;   // where the user started dragging the selection
+    private boolean selecting = false;     // true while dragging out a selection box
+    private boolean moving = false;        // true while dragging a selection around
+    private double moveGrabX, moveGrabY;   // where inside the selection the user grabbed it
+    private boolean floating = false;      // true while the selection is "lifted" off the canvas (moving or just pasted)
+    private WritableImage floatBase;       // canvas WITHOUT the lifted selection, redrawn under it every frame
+    private static WritableImage clipboardImage;
+    private static double clipW, clipH;
 
     /**
      * Method that sets the Tool to the current selected tool
@@ -43,8 +71,25 @@ public class Drawing { //start of the class for tools
         currentTool = tool; //sets the current tool to tool
         lineStarted = false; //sets linestarted to false
 
-        if (tool.equals("pencil")){
+        if (!tool.equals("eraser")) {
             gc.setStroke(colorPicker.getValue());
+        }
+
+        // The lifted selection is put down when the user leaves the select/move tools
+        if (!tool.equals("select") && !tool.equals("move")) {
+            floating = false;
+        }
+
+        // Polygon asks how many sides it should have
+        if (tool.equals("polygon")) {
+            promptPolygonSides();
+        }
+
+        // Only show the selection outline while select/move is active
+        if (tool.equals("select") || tool.equals("move")) {
+            redrawOutline();
+        } else {
+            clearOverlay();
         }
     }
 
@@ -53,8 +98,45 @@ public class Drawing { //start of the class for tools
      * @param tool the current tool selected by the user
      */
     private boolean isShapeTool(String tool) {
+        // CHANGED: added righttriangle, diamond, and polygon
         return tool.equals("square") || tool.equals("circle") || tool.equals("rectangle")
-            || tool.equals("ellipse") || tool.equals("triangle") || tool.equals("star");
+            || tool.equals("ellipse") || tool.equals("triangle") || tool.equals("star")
+            || tool.equals("righttriangle") || tool.equals("diamond") || tool.equals("polygon");
+    }
+
+    /**
+     * Gets how many real screen pixels there are per canvas unit (1 on a normal screen, 1.25/1.5/2 on scaled screens)
+     * @return the render scale
+     */
+    private double getRenderScale() {
+        if (canvas.getScene() != null && canvas.getScene().getWindow() != null) {
+            return canvas.getScene().getWindow().getOutputScaleX();
+        }
+        return Screen.getPrimary().getOutputScaleX();
+    }
+
+    /**
+     * Takes a snapshot of the canvas at the real screen resolution.
+     * canvas.snapshot(null, null) only gives an image at 1x size. On a scaled screen
+     * that small image was stretched back over the canvas every time a shape was previewed/undone,
+     * which is what made the old drawing blurry. Scaling the snapshot keeps every pixel.
+     * @return a full resolution snapshot of the canvas
+     */
+    private WritableImage takeSnapshot() {
+        double scale = getRenderScale();
+        SnapshotParameters params = new SnapshotParameters();
+        params.setFill(Color.WHITE);
+        params.setTransform(Transform.scale(scale, scale));
+        return canvas.snapshot(params, null);
+    }
+
+    /**
+     * Draws a snapshot from takeSnapshot() back over the whole canvas.
+     * The destination size is given so the full resolution snapshot lines up 1 to 1 with the canvas.
+     * @param image the snapshot to draw
+     */
+    private void drawSnapshot(WritableImage image) {
+        gc.drawImage(image, 0, 0, canvas.getWidth(), canvas.getHeight());
     }
 
     /**
@@ -72,9 +154,18 @@ public class Drawing { //start of the class for tools
 
         gc = canvas.getGraphicsContext2D(); 
 
+        // Overlay canvas for the selection outline, mouseTransparent so clicks reach the real canvas
+        overlay = new Canvas(width, height);
+        overlay.setMouseTransparent(true);
+        overlayGc = overlay.getGraphicsContext2D();
+
         //sets the tools color and width
         gc.setStroke(Color.BLACK);
         gc.setLineWidth(2); 
+
+        // Blank white starting image (before this the canvas was transparent,
+        // which saved as black in jpg files)
+        fillWhite();
         
         //Sets the colorpicker
         colorPicker = new ColorPicker(Color.BLACK); 
@@ -99,28 +190,63 @@ public class Drawing { //start of the class for tools
         Button refreshButton = new Button("Refresh"); 
         refreshButton.setOnAction(e -> refresh()); 
 
+        // Undo and redo buttons in the toolbar
+        Button undoButton = new Button("Undo");
+        undoButton.setOnAction(e -> undo());
+        Button redoButton = new Button("Redo");
+        redoButton.setOnAction(e -> redo());
+
+        // Shapes dropdown in the toolbar
+        MenuButton shapesButton = new MenuButton("Shapes");
+        String[][] shapes = {
+            {"Square", "square"}, {"Circle", "circle"}, {"Rectangle", "rectangle"},
+            {"Ellipse", "ellipse"}, {"Triangle", "triangle"}, {"Right Triangle", "righttriangle"},
+            {"Star", "star"}, {"Diamond", "diamond"}, {"Polygon", "polygon"}
+        };
+        for (String[] shape : shapes) {
+            MenuItem shapeItem = new MenuItem(shape[0]);
+            shapeItem.setOnAction(e -> {
+                setTool(shape[1]);
+                shapesButton.setText("Shape: " + shape[0]); //shows which shape is picked
+            });
+            shapesButton.getItems().add(shapeItem);
+        }
+
         //Adds the syling for the toolbar
         HBox toolbar = new HBox(10); 
         toolbar.setStyle("-fx-background-color: #d3d3d3;"); 
 
         //adds all the items into the main toolbar
-        toolbar.getChildren().addAll(refreshButton, widthLabel, widthSlider, colorPicker, dashedCheckBox); 
+        toolbar.getChildren().addAll(refreshButton, undoButton, redoButton, shapesButton, widthLabel, widthSlider, colorPicker, dashedCheckBox); 
 
         canvas.addEventHandler(MouseEvent.MOUSE_PRESSED, e -> { 
             if (currentTool.equals("eraser")) {
                 gc.setStroke(Color.WHITE);
             }
             if (currentTool.equals("pencil") || currentTool.equals("eraser")) {
+                saveUndoState(); //one undo step per stroke
                 startX = e.getX(); 
                 startY = e.getY(); 
             } 
 
             //if the current tool is a Shape it will get the X,Y and send a snapshot to the user
             if (isShapeTool(currentTool)) { 
+                saveUndoState();
                 startX = e.getX();
                 startY = e.getY();
-                shapeSnapshot = canvas.snapshot(null, null);
+                shapeSnapshot = takeSnapshot(); // sharp snapshot
             } 
+
+            if (currentTool.equals("select") || currentTool.equals("move")) {
+                if (selectedImage != null && insideSelection(e.getX(), e.getY())) {
+                    startMove(e.getX(), e.getY());
+                } else if (currentTool.equals("select")) {
+                    floating = false; //whatever was lifted is already sitting on the canvas
+                    selStartX = e.getX();
+                    selStartY = e.getY();
+                    selecting = true;
+                }
+            }
         });
 
         canvas.addEventHandler(MouseEvent.MOUSE_DRAGGED, e -> { 
@@ -144,12 +270,38 @@ public class Drawing { //start of the class for tools
             if (isShapeTool(currentTool)) { 
                 previewShape(e.getX(), e.getY()); 
             } 
+
+            // Live outline while dragging out a selection
+            if (selecting) {
+                drawOutline(Math.min(selStartX, e.getX()), Math.min(selStartY, e.getY()),
+                            Math.abs(e.getX() - selStartX), Math.abs(e.getY() - selStartY));
+            }
+
+            //Live draw while moving a selection
+            if (moving) {
+                selX = e.getX() - moveGrabX;
+                selY = e.getY() - moveGrabY;
+                drawSnapshot(floatBase); //canvas without the selection
+                gc.drawImage(selectedImage, selX, selY, selW, selH); //selection at its new spot
+                drawOutline(selX, selY, selW, selH);
+            }
         }); 
 
         //On the mouse released if the tool is a shape it will call the preview function
         canvas.addEventHandler(MouseEvent.MOUSE_RELEASED, e -> { 
             if (isShapeTool(currentTool)) { 
                 previewShape(e.getX(), e.getY());
+            }
+
+            // Finish the selection by copying the pixels inside the box
+            if (selecting) {
+                selecting = false;
+                finishSelection(e.getX(), e.getY());
+            }
+
+            // Done moving (the selection stays lifted so it can be moved again without damaging what is under it)
+            if (moving) {
+                moving = false;
             }
         });
 
@@ -160,6 +312,7 @@ public class Drawing { //start of the class for tools
                     startY = e.getY();
                     lineStarted = true;
                 } else { 
+                    saveUndoState(); 
                     gc.setLineDashes(dashed ? new double[]{10, 10} : null); 
                     gc.strokeLine( 
                         startX, 
@@ -168,21 +321,44 @@ public class Drawing { //start of the class for tools
                         e.getY() 
                     ); 
                     lineStarted = false;
-                } 
+                }
+            }
+
+            // The text tool code used to be nested inside the line tool's if
+            // (so it could never run) and there was a second copy in previewShape.
+            // It now lives here on its own.
+            if (currentTool.equals("text")) {
+                startX = e.getX();
+                startY = e.getY();
+
+                TextInputDialog dialog = new TextInputDialog();
+                dialog.setTitle("Add Text");
+                dialog.setHeaderText("Enter text:");
+
+                dialog.showAndWait().ifPresent(text -> {
+                    saveUndoState();
+
+                    gc.setFill(colorPicker.getValue());
+                    gc.setFont(Font.font(24));
+                    gc.fillText(text, startX, startY);
+                });
             }
 
             //ColorGrabber
             if (currentTool.equals("colorGrabber")) {
                 //creates a snapshot of the canvas
-                WritableImage image = canvas.snapshot(null, null);
+                WritableImage image = takeSnapshot(); // CHANGED: full resolution snapshot
                 //creates a pixelreader to get the color of the pixel
                 PixelReader pixelReader = image.getPixelReader();
 
+                // CHANGED: the snapshot can be bigger than the canvas, so the click is scaled to match
+                double scaleX = image.getWidth() / canvas.getWidth();
+                double scaleY = image.getHeight() / canvas.getHeight();
+                int px = (int) Math.min(image.getWidth() - 1, Math.max(0, e.getX() * scaleX));
+                int py = (int) Math.min(image.getHeight() - 1, Math.max(0, e.getY() * scaleY));
+
                 //gets the coordinates of the click to get the color of the pixel
-                Color pickedColor = pixelReader.getColor(
-                    (int) e.getX(),
-                    (int) e.getY()
-                );
+                Color pickedColor = pixelReader.getColor(px, py);
                 //sets the colorpicker and the gc stroke to the pixel color
                 colorPicker.setValue(pickedColor);
                 gc.setStroke(pickedColor);
@@ -192,7 +368,7 @@ public class Drawing { //start of the class for tools
         //creates a drawingpane to organize the canvas and the toolbar
         drawingPane = new BorderPane();
         drawingPane.setTop(toolbar); 
-        drawingPane.setCenter(canvas); 
+        drawingPane.setCenter(new StackPane(canvas, overlay)); 
     }
 
     /**
@@ -207,7 +383,7 @@ public class Drawing { //start of the class for tools
      */
     private void previewShape(double curX, double curY) {
         if (shapeSnapshot != null) {
-            gc.drawImage(shapeSnapshot, 0, 0); 
+            drawSnapshot(shapeSnapshot); // CHANGED: draws the sharp snapshot 1 to 1 (this was the blur bug)
         }
 
         gc.setLineDashes(dashed ? new double[]{10, 10} : null); 
@@ -243,11 +419,28 @@ public class Drawing { //start of the class for tools
                 gc.strokePolygon(xs, ys, 3); //(x,y+h) = bottom left (x+w,y+h) bottom right, ((x+w)/2, y) = middle top draws the triangle at these points
                 break;
             }
+            case "righttriangle": { // CHANGED: added braces so xs/ys stay scoped to this case
+                double[] xs = {x, x, x + w}; //right angle sits in the bottom left corner
+                double[] ys = {y, y + h, y + h};
+                gc.strokePolygon(xs, ys, 3);
+                break;
+            }
             case "star": 
                 drawStar(x, y, w, h); //takes the variables to the starr function
                 break;
+            case "diamond": { //The extra shape of my choice
+                double[] xs = {x + w / 2, x + w, x + w / 2, x}; //top, right, bottom, left points
+                double[] ys = {y, y + h / 2, y + h, y + h / 2};
+                gc.strokePolygon(xs, ys, 4);
+                break;
+            }
+            case "polygon":
+                drawPolygon(x, y, w, h, numberOfSides);
+                break;
+            // Removed the "text" case from here, text is handled in the click handler now
             default:
                 break;
+            
         } 
     } 
 
@@ -280,19 +473,280 @@ public class Drawing { //start of the class for tools
     }
 
     /**
-     * Refresh button to get rid of everything on the canvas
+     * Private method for drawing a regular polygon with any number of sides
+     * Places the points evenly around a circle inside the bounding box
+     * @param x the leftmost corner of x
+     * @param y the topmost corner of y
+     * @param w the width
+     * @param h the height
+     * @param sides the number of sides (3 or more)
      */
-    private void refresh() { 
-        gc.clearRect( 
-            0, 
-            0,
-            canvas.getWidth(), 
-            canvas.getHeight() 
-        ); 
-    } 
+    private void drawPolygon(double x, double y, double w, double h, int sides) {
+        double centerX = x + w / 2;
+        double centerY = y + h / 2;
+        double radius = Math.min(w, h) / 2;
+
+        double[] xs = new double[sides];
+        double[] ys = new double[sides];
+
+        for (int i = 0; i < sides; i++) {
+            double angle = 2 * Math.PI * i / sides - Math.PI / 2;
+
+            xs[i] = centerX + radius * Math.cos(angle);
+            ys[i] = centerY + radius * Math.sin(angle);
+        }
+        gc.strokePolygon(xs, ys, sides);
+    }
 
     /**
-     * Method for getting the DrawingPane
+     * Asks the user how many sides the polygon tool should draw
+     * Anything under 3 or not a number is rejected and the old value is kept
+     */
+    public void promptPolygonSides() {
+        TextInputDialog dialog = new TextInputDialog(String.valueOf(numberOfSides));
+        dialog.setTitle("Polygon");
+        dialog.setHeaderText("Number of sides (3 or more):");
+        dialog.showAndWait().ifPresent(input -> {
+            try {
+                int sides = Integer.parseInt(input.trim());
+                if (sides >= 3) {
+                    numberOfSides = sides;
+                } else {
+                    showSidesError();
+                }
+            } catch (NumberFormatException ex) {
+                showSidesError();
+            }
+        });
+    }
+
+    /**
+     * Error box for a bad polygon side count
+     */
+    private void showSidesError() {
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.setTitle("Invalid Sides");
+        alert.setHeaderText("Invalid number of sides");
+        alert.setContentText("Please enter a whole number that is 3 or more.");
+        alert.showAndWait();
+    }
+
+    /**
+     * Fills the whole canvas with white so it is a blank image
+     */
+    private void fillWhite() {
+        gc.setFill(Color.WHITE);
+        gc.fillRect(0, 0, canvas.getWidth(), canvas.getHeight());
+    }
+
+    /**
+     * Refresh button to get rid of everything on the canvas
+     * Also used for the Clear Canvas menu item, asks "are you sure" first
+     */
+    public void refresh() {
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle("Clear Canvas");
+        alert.setHeaderText("Are you sure?");
+        alert.setContentText("This will clear the entire canvas.");
+
+        Optional<ButtonType> result = alert.showAndWait();
+        if (result.isPresent() && result.get() == ButtonType.OK) {
+            saveUndoState();
+            clearSelection(); // NEW
+            // CHANGED: fills white instead of clearRect so the canvas stays a blank white image
+            fillWhite();
+        }
+    }
+
+    /**
+     * Saves the current canvas onto the undo stack (and empties the redo stack)
+     */
+    private void saveUndoState() {
+        WritableImage snapshot = takeSnapshot(); // CHANGED: sharp snapshot
+        undoStack.push(snapshot);
+        if (undoStack.size() > MAX_UNDO) {
+            undoStack.remove(0);
+        }
+        redoStack.clear();
+    }
+
+    /**
+     * Public method that undoes the last action through taking a snapshot
+     * and drawing it back on the canvas
+     */
+    public void undo() {
+        if (!undoStack.empty()) {
+            WritableImage current = takeSnapshot();
+            redoStack.push(current);
+
+            WritableImage previous = undoStack.pop();
+            gc.clearRect(0, 0, canvas.getWidth(), canvas.getHeight());
+            drawSnapshot(previous); 
+            clearSelection(); 
+        }
+    }
+    
+    /**
+     * Public method that redoes the last undone action through taking a snapshot
+     * and drawing it back on the canvas
+     */
+    public void redo() {
+        if (!redoStack.empty()) {
+            WritableImage current = takeSnapshot(); // CHANGED: sharp snapshot
+            undoStack.push(current);
+
+            WritableImage next = redoStack.pop();
+            gc.clearRect(0, 0, canvas.getWidth(), canvas.getHeight());
+            drawSnapshot(next); // CHANGED: drawn 1 to 1
+            clearSelection(); // NEW
+        }
+    }
+
+    /**
+     * Checks if a point is inside the current selection
+     * @param x the x of the point
+     * @param y the y of the point
+     * @return true if the point is inside the selection box
+     */
+    private boolean insideSelection(double x, double y) {
+        return x >= selX && x <= selX + selW && y >= selY && y <= selY + selH;
+    }
+
+    /**
+     * Finishes a selection when the mouse is released
+     * Copies the pixels inside the dragged box out of a full resolution snapshot
+     * A click with no drag just clears the selection
+     * @param endX the x where the mouse was released
+     * @param endY the y where the mouse was released
+     */
+    private void finishSelection(double endX, double endY) {
+        //keeps the box inside the canvas
+        double x0 = Math.max(0, Math.min(selStartX, endX));
+        double y0 = Math.max(0, Math.min(selStartY, endY));
+        double x1 = Math.min(canvas.getWidth(), Math.max(selStartX, endX));
+        double y1 = Math.min(canvas.getHeight(), Math.max(selStartY, endY));
+
+        if (x1 - x0 < 1 || y1 - y0 < 1) {
+            clearSelection();
+            return;
+        }
+
+        //Gets the snapshot at full resolution and calculates the selection box in that image
+        WritableImage snap = takeSnapshot();
+        double scaleX = snap.getWidth() / canvas.getWidth();
+        double scaleY = snap.getHeight() / canvas.getHeight();
+        int px = (int) Math.round(x0 * scaleX);
+        int py = (int) Math.round(y0 * scaleY);
+        int pw = Math.max(1, Math.min((int) Math.round((x1 - x0) * scaleX), (int) snap.getWidth() - px));
+        int ph = Math.max(1, Math.min((int) Math.round((y1 - y0) * scaleY), (int) snap.getHeight() - py));
+
+        // Copies the pixels inside the selection box into selectedImage and sets its position and size
+        selectedImage = new WritableImage(snap.getPixelReader(), px, py, pw, ph);
+        selX = x0;
+        selY = y0;
+        selW = pw / scaleX;
+        selH = ph / scaleY;
+        floating = false;
+        redrawOutline();
+    }
+
+    /**
+     * Public method that starts dragging the selection
+     * The first time, the selection is lifted: its old spot is filled white and the canvas without
+     * it is saved as floatBase. While dragging, floatBase is redrawn and the selection is drawn on top (live draw).
+     * After that the selection stays lifted so moving it again doesn't erase what it was dropped on.
+     * @param mouseX the x of the mouse press
+     * @param mouseY the y of the mouse press
+     */
+    private void startMove(double mouseX, double mouseY) {
+        saveUndoState();
+        if (!floating) {
+            gc.setFill(Color.WHITE);
+            gc.fillRect(selX, selY, selW, selH); //erase the old spot
+            floatBase = takeSnapshot();
+            gc.drawImage(selectedImage, selX, selY, selW, selH); //put it back so nothing jumps
+            floating = true;
+        }
+        moveGrabX = mouseX - selX;
+        moveGrabY = mouseY - selY;
+        moving = true;
+    }
+
+    /**
+     * Public method that copies the current selection so it can be pasted
+     */
+    public void copySelection() {
+        if (selectedImage != null) {
+            clipboardImage = selectedImage;
+            clipW = selW;
+            clipH = selH;
+        }
+    }
+
+    /**
+     * Public method that pastes the copied piece into the top left corner and switches to the select tool
+     * so the user can drag it (live) to where they want it
+     */
+    public void pasteSelection() {
+        if (clipboardImage == null) {
+            return;
+        }
+        saveUndoState();
+        floatBase = takeSnapshot(); //canvas before the paste, so dragging the paste doesn't erase anything
+        selectedImage = clipboardImage;
+        selX = 0;
+        selY = 0;
+        selW = clipW;
+        selH = clipH;
+        gc.drawImage(selectedImage, selX, selY, selW, selH);
+        floating = true;
+        currentTool = "select";
+        lineStarted = false;
+        redrawOutline();
+    }
+
+    /**
+     * Public method that forgets the current selection and hides its outline
+     */
+    private void clearSelection() {
+        selectedImage = null;
+        floating = false;
+        moving = false;
+        selecting = false;
+        clearOverlay();
+    }
+
+    /**
+     * Public method that clears everything on the overlay canvas
+     */
+    private void clearOverlay() {
+        overlayGc.clearRect(0, 0, overlay.getWidth(), overlay.getHeight());
+    }
+
+    /**
+     * Public method that draws the dashed selection outline on the overlay
+     */
+    private void drawOutline(double x, double y, double w, double h) {
+        clearOverlay();
+        overlayGc.setStroke(Color.BLUE);
+        overlayGc.setLineWidth(1);
+        overlayGc.setLineDashes(5, 5);
+        overlayGc.strokeRect(x, y, w, h);
+    }
+
+    /**
+     * Public method that redrawing the outline for the current selection (if there is one)
+     */
+    private void redrawOutline() {
+        if (selectedImage != null) {
+            drawOutline(selX, selY, selW, selH);
+        } else {
+            clearOverlay();
+        }
+    }
+
+    /**
+     * Public method for getting the DrawingPane
      * @return the drawingpane
      */
     public BorderPane getDrawingPane() { 
@@ -300,7 +754,7 @@ public class Drawing { //start of the class for tools
     } 
 
     /**
-     * Method for getting the canvas
+     * Public method for getting the canvas
      * @return the canvas
      */
     public Canvas getCanvas() { 
@@ -308,11 +762,13 @@ public class Drawing { //start of the class for tools
     } 
 
     /**
-     * Method for loading the image after refreshing the canvas
+     * Public method for loading the image after refreshing the canvas
      * @param image the image that is being loaded
      */
     public void loadImage(Image image) { 
-        refresh(); 
+        saveUndoState();
+        clearSelection();
+        fillWhite();
         gc.drawImage(image, 0, 0);
     } 
-} 
+}

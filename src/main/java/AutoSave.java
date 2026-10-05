@@ -10,12 +10,12 @@ import java.io.File;
 import java.util.Optional;
 
 /**
- * Handles automatic saving, tracking unsaved changes,
- * and confirming whether the user wants to save changes
- * before closing the application.
+ * Handles automatic saving
+ * Tracks unsaved changes
+ * Confirms whether the user wants to save changes
+ * Before closing the application
  */
 public class AutoSave {
-
     private boolean unsavedChanges;
     private File currentFile;
     private Timeline autoSaveTimer;
@@ -33,14 +33,14 @@ public class AutoSave {
     }
 
     /**
-     * Marks the current document as having unsaved changes.
+     * Marks the current document as having unsaved changes
      */
     public void markUnsaved() {
         unsavedChanges = true;
     }
 
     /**
-     * Marks the current document as saved.
+     * Marks the current document as saved
      */
     public void markSaved() {
         unsavedChanges = false;
@@ -65,7 +65,7 @@ public class AutoSave {
     }
 
     /**
-     * Gets the current file being edited.
+     * Gets the current file being edited
      *
      * @return the current file
      */
@@ -75,9 +75,9 @@ public class AutoSave {
 
     /**
      * Starts the automatic save timer.
-     *
-     * <p>The timer runs every 30 seconds and attempts
-     * to save the current file if it has unsaved changes.</p>
+     * The timer runs every 30 seconds
+     * Attempts to save the current file if it has unsaved changes
+     * 
      */
     public void startAutoSave() {
         if (autoSaveTimer != null) {
@@ -96,7 +96,7 @@ public class AutoSave {
     }
 
     /**
-     * Stops the automatic save timer if it is currently running.
+     * Stops the automatic save timer if it is currently running
      */
     public void stopAutoSave() {
         if (autoSaveTimer != null) {
@@ -106,7 +106,7 @@ public class AutoSave {
 
     /**
      * Performs an automatic save if there are unsaved changes
-     * and a current file has been selected.
+     * and a current file has been selected
      */
     private void performAutoSave() {
         if (!unsavedChanges) {
@@ -122,7 +122,7 @@ public class AutoSave {
 
     /**
      * Displays a warning asking the user whether they want
-     * to save changes before closing the application.
+     * to save changes before closing the application
      *
      * @param stage the current application stage
      * @return true if the application can close, otherwise false
