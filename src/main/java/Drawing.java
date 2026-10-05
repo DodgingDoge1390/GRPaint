@@ -98,7 +98,7 @@ public class Drawing { //start of the class for tools
      * @param tool the current tool selected by the user
      */
     private boolean isShapeTool(String tool) {
-        // CHANGED: added righttriangle, diamond, and polygon
+        // added righttriangle, diamond, and polygon
         return tool.equals("square") || tool.equals("circle") || tool.equals("rectangle")
             || tool.equals("ellipse") || tool.equals("triangle") || tool.equals("star")
             || tool.equals("righttriangle") || tool.equals("diamond") || tool.equals("polygon");
@@ -163,8 +163,7 @@ public class Drawing { //start of the class for tools
         gc.setStroke(Color.BLACK);
         gc.setLineWidth(2); 
 
-        // Blank white starting image (before this the canvas was transparent,
-        // which saved as black in jpg files)
+        // Blank white starting image
         fillWhite();
         
         //Sets the colorpicker
@@ -347,11 +346,11 @@ public class Drawing { //start of the class for tools
             //ColorGrabber
             if (currentTool.equals("colorGrabber")) {
                 //creates a snapshot of the canvas
-                WritableImage image = takeSnapshot(); // CHANGED: full resolution snapshot
+                WritableImage image = takeSnapshot(); // full resolution snapshot
                 //creates a pixelreader to get the color of the pixel
                 PixelReader pixelReader = image.getPixelReader();
 
-                // CHANGED: the snapshot can be bigger than the canvas, so the click is scaled to match
+                // the snapshot can be bigger than the canvas, so the click is scaled to match
                 double scaleX = image.getWidth() / canvas.getWidth();
                 double scaleY = image.getHeight() / canvas.getHeight();
                 int px = (int) Math.min(image.getWidth() - 1, Math.max(0, e.getX() * scaleX));
@@ -562,7 +561,7 @@ public class Drawing { //start of the class for tools
      * Saves the current canvas onto the undo stack (and empties the redo stack)
      */
     private void saveUndoState() {
-        WritableImage snapshot = takeSnapshot(); // CHANGED: sharp snapshot
+        WritableImage snapshot = takeSnapshot(); 
         undoStack.push(snapshot);
         if (undoStack.size() > MAX_UNDO) {
             undoStack.remove(0);
@@ -592,7 +591,7 @@ public class Drawing { //start of the class for tools
      */
     public void redo() {
         if (!redoStack.empty()) {
-            WritableImage current = takeSnapshot(); // CHANGED: sharp snapshot
+            WritableImage current = takeSnapshot(); 
             undoStack.push(current);
 
             WritableImage next = redoStack.pop();
