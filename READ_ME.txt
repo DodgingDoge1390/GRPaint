@@ -1,4 +1,37 @@
 GITHUB LINK - https://github.com/DodgingDoge1390/ActualGRPaint
+
+Garrett's GRPaint Version 0.0.6 - 10/25/2026
+New Features:
+- Logging
+- Rotation through 90/180/270
+- Rotation through a selected piece
+- Notifications from OS about AutoSave/Webserver
+- Tool tips plus tool icons
+- Revamped Toolbar
+- Threading!
+
+Known Issues: 
+- Nothing Known
+
+Future Updates:
+- I dont know!
+
+
+Garrett's GRPaint Version 0.0.5 - 10/14/2026
+New Features: 
+- Web Server that you can add your pictures to
+- AutoSave functionality
+- Star with as many points as possible
+- 8 different unit tests
+
+Known Issues:
+- No ScrollPane
+
+Future Updates:
+- More Shapes
+- Ability to Zoom Out
+- Cropping
+
 Garrett's GRPaint Version 0.0.4 - 10/2/2026
 New Features:
 - Undo/Redo buttons

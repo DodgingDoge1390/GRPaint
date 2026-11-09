@@ -1,4 +1,11 @@
+DrawingHistory$State.class
+Drawing.class
+Rotation.class
+Selection.class
 PaintTab.class
 AutoSave.class
+Shapes.class
+DrawingHistory.class
+ImageServer.class
 Paint.class
-Drawing.class
+Logging.class
