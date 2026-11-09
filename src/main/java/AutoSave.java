@@ -23,7 +23,7 @@ public class AutoSave {
     private Timeline countdownTimer;
     private Runnable saveFunction;
     private Runnable manualSaveFunction;
-    private boolean enabled = false;
+    private boolean enabled = true; // Start autosave automatically for each new tab.
     private boolean showCountdown = false;
     private int secondsRemaining = 30;
     private Label countdownLabel;

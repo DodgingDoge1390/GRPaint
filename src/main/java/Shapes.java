@@ -1,7 +1,7 @@
 import javafx.scene.canvas.GraphicsContext;
 
 /**
- * Public class that contains the algorithms for drawing the shapes in GRPaint.
+ * Initializes the shapes class.
  */
 public class Shapes {
     /**
@@ -36,19 +36,16 @@ public class Shapes {
                 break;
             }
             case "triangle":
-                gc.strokePolygon(new double[]{x, x + width, x + width / 2},
-                                 new double[]{y + height, y + height, y}, 3);
+                gc.strokePolygon(new double[]{x, x + width, x + width / 2}, new double[]{y + height, y + height, y}, 3);
                 break;
             case "righttriangle":
-                gc.strokePolygon(new double[]{x, x, x + width},
-                                 new double[]{y, y + height, y + height}, 3);
+                gc.strokePolygon(new double[]{x, x, x + width}, new double[]{y, y + height, y + height}, 3);
                 break;
             case "star":
                 drawStar(gc, x, y, width, height, starPoints);
                 break;
             case "diamond":
-                gc.strokePolygon(new double[]{x + width / 2, x + width, x + width / 2, x},
-                                 new double[]{y, y + height / 2, y + height, y + height / 2}, 4);
+                gc.strokePolygon(new double[]{x + width / 2, x + width, x + width / 2, x}, new double[]{y, y + height / 2, y + height, y + height / 2}, 4);
                 break;
             case "polygon":
                 drawPolygon(gc, x, y, width, height, sides);

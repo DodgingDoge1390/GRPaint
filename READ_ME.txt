@@ -1,5 +1,17 @@
 GITHUB LINK - https://github.com/DodgingDoge1390/ActualGRPaint
 
+Garrett GRPaint Version 1.0 - 11/9/2026
+
+New Features:
+- Overhaul of code, went from 10 to 22 files
+- Finally fixed ScrollPane for Resize, and also added Windows OS notifications
+
+Known Issues: 
+- Nothing Known
+
+Future Updates:
+- Sky's the Limit!
+
 Garrett's GRPaint Version 0.0.6 - 10/25/2026
 New Features:
 - Logging

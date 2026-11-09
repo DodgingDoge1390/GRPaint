@@ -1,19 +1,17 @@
-import java.util.Optional;
 import java.util.function.Supplier;
 
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.SnapshotParameters;
+import javafx.scene.Group;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
-import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
-import javafx.scene.control.ButtonType;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ColorPicker;
 import javafx.scene.control.Label;
 import javafx.scene.control.MenuButton;
 import javafx.scene.control.MenuItem;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Slider;
 import javafx.scene.control.TextInputDialog;
 import javafx.scene.control.Tooltip;
@@ -25,14 +23,9 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
-import javafx.scene.shape.SVGPath;
 import javafx.scene.text.Font;
-import javafx.scene.transform.Transform;
-import javafx.stage.Screen;
 /**
- * Public Class for the Drawing functionality in GRPaint
- * Defines and calculates what each Tool and Shape does
- * when the user clicks on it
+ * Manages the canvas, drawing tools, and user interactions in GRPaint.
  */
 public class Drawing {
     private Canvas canvas;
@@ -48,8 +41,9 @@ public class Drawing {
     private ColorPicker colorPicker;
     private Label widthLabel;
     private Label toolLabel;
-    private WritableImage shapeSnapshot;
-    private DrawingHistory history = new DrawingHistory();
+    private ShapePreview shapePreview;
+    private CanvasOperations canvasOperations;
+    private final DrawingHistory history = new DrawingHistory();
 
     private int numberOfSides = 5;
     private int numberOfStarPoints = 5;
@@ -64,8 +58,8 @@ public class Drawing {
     private Selection selection;
 
     /**
-     * Method that sets the Tool to the current selected tool
-     * @param tool the current tool selected by user
+     * Activates the selected drawing tool.
+     * @param tool the name of the tool to select
      */
     public void setTool(String tool) {
         if (!tool.equals("colorGrabber")) {
@@ -105,8 +99,9 @@ public class Drawing {
     }
 
     /**
-     * Method that checks if the user selected a shape
-     * @param tool the current tool selected by the user
+     * Checks whether a tool draws shapes.
+     * @param tool the tool name to check
+     * @return true if the tool draws shapes
      */
     private boolean isShapeTool(String tool) {
         return tool.equals("square") || tool.equals("circle")
@@ -117,46 +112,9 @@ public class Drawing {
     }
 
     /**
-     * Gets how many real screen pixels there are per canvas unit.
-     * @return the render scale
-     */
-    private double getRenderScale() {
-        if (canvas.getScene() != null
-                && canvas.getScene().getWindow() != null) {
-            return canvas.getScene().getWindow().getOutputScaleX();
-        }
-
-        return Screen.getPrimary().getOutputScaleX();
-    }
-
-    /**
-     * Takes a snapshot of the canvas at the real screen resolution.
-     * @return a full resolution snapshot of the canvas
-     */
-    private WritableImage takeSnapshot() {
-        double scale = getRenderScale();
-
-        SnapshotParameters params = new SnapshotParameters();
-        params.setFill(Color.WHITE);
-        params.setTransform(Transform.scale(scale, scale));
-
-        return canvas.snapshot(params, null);
-    }
-
-    /**
-     * Draws a snapshot from takeSnapshot() back over the whole canvas.
-     * @param image the snapshot to draw
-     */
-    private void drawSnapshot(WritableImage image) {
-        gc.drawImage(image, 0, 0,
-                     canvas.getWidth(), canvas.getHeight());
-    }
-
-    /**
-     * Public method for setting the drawing for the canvas and the tools.
-     * Sets toolbar, colorpicker, and refresh button.
-     * @param width takes the width of the drawing
-     * @param height takes the height of the drawing
+     * Creates a drawing canvas and its toolbar.
+     * @param width the canvas width in pixels
+     * @param height the canvas height in pixels
      */
     public Drawing(double width, double height) {
         canvas = new Canvas(width, height);
@@ -174,7 +132,8 @@ public class Drawing {
         gc.setLineWidth(2);
 
         // Blank white starting image
-        fillWhite();
+        CanvasOperations.fillWhite(canvas);
+        shapePreview = new ShapePreview(canvas, gc);
 
         // Creates the selection class
         selection = new Selection(
@@ -184,6 +143,7 @@ public class Drawing {
             this::saveUndoState,
             this::markChanged
         );
+        canvasOperations = new CanvasOperations(canvas, gc, selection, history, this::markChanged, this::logAction);
 
         // Sets the colorpicker
         colorPicker = new ColorPicker(Color.BLACK);
@@ -240,17 +200,17 @@ public class Drawing {
         redoButton.setOnAction(e -> redo());
 
         // Tool icons are vector drawings, so separate PNG resources are not required.
-        Button pencilButton = createToolButton("pencil", "Pencil: draw freehand", "M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25z M20.7 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z");
-        Button lineButton = createToolButton("line", "Line: click two points", "M4 19L19 4l1 1L5 20z");
-        Button eraserButton = createToolButton("eraser", "Eraser: remove parts of drawing", "M15.14 3l5.86 5.86a2 2 0 0 1 0 2.83L12.69 20H5a2 2 0 0 1-1.41-.59L1 16.83a2 2 0 0 1 0-2.83L12.31 3a2 2 0 0 1 2.83 0z M6 18h5.86L19.6 10.3l-5.86-5.86L2.4 15.41z");
-        Button textButton = createToolButton("text", "Text: click to add text", "M4 4h16v4h-2V6h-5v12h3v2H8v-2h3V6H6v2H4z");
-        Button grabberButton = createToolButton("colorGrabber", "Color Grabber: pick a color from the canvas", "M20.71 3.29a1 1 0 0 0-1.42 0L16.5 6.08l-1.59-1.59-1.41 1.41L15.09 7.5l-9.9 9.9a3 3 0 0 0-.83 1.55L4 21l2.05-.36a3 3 0 0 0 1.55-.83l9.9-9.9 1.59 1.59 1.41-1.41-1.59-1.59 2.79-2.79a1 1 0 0 0 0-1.42z");
-        Button selectButton = createToolButton("select", "Select: drag to select part of the image", "M3 3h7v2H5v5H3z M14 3h7v7h-2V5h-5z M3 14h2v5h5v2H3z M19 14h2v7h-7v-2h5z");
-        Button moveButton = createToolButton("move", "Move: drag the selected piece", "M12 2l4 4h-3v5h5V8l4 4-4 4v-3h-5v5h3l-4 4-4-4h3v-5H6v3l-4-4 4-4v3h5V6H8z");
+        Button pencilButton = ToolButtonFactory.createToolButton(this::setTool, "pencil", "Pencil: draw freehand", "M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25z M20.7 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z");
+        Button lineButton = ToolButtonFactory.createToolButton(this::setTool, "line", "Line: click two points", "M4 19L19 4l1 1L5 20z");
+        Button eraserButton = ToolButtonFactory.createToolButton(this::setTool, "eraser", "Eraser: remove parts of drawing", "M15.14 3l5.86 5.86a2 2 0 0 1 0 2.83L12.69 20H5a2 2 0 0 1-1.41-.59L1 16.83a2 2 0 0 1 0-2.83L12.31 3a2 2 0 0 1 2.83 0z M6 18h5.86L19.6 10.3l-5.86-5.86L2.4 15.41z");
+        Button textButton = ToolButtonFactory.createToolButton(this::setTool, "text", "Text: click to add text", "M4 4h16v4h-2V6h-5v12h3v2H8v-2h3V6H6v2H4z");
+        Button grabberButton = ToolButtonFactory.createToolButton(this::setTool, "colorGrabber", "Color Grabber: pick a color from the canvas", "M20.71 3.29a1 1 0 0 0-1.42 0L16.5 6.08l-1.59-1.59-1.41 1.41L15.09 7.5l-9.9 9.9a3 3 0 0 0-.83 1.55L4 21l2.05-.36a3 3 0 0 0 1.55-.83l9.9-9.9 1.59 1.59 1.41-1.41-1.59-1.59 2.79-2.79a1 1 0 0 0 0-1.42z");
+        Button selectButton = ToolButtonFactory.createToolButton(this::setTool, "select", "Select: drag to select part of the image", "M3 3h7v2H5v5H3z M14 3h7v7h-2V5h-5z M3 14h2v5h5v2H3z M19 14h2v7h-7v-2h5z");
+        Button moveButton = ToolButtonFactory.createToolButton(this::setTool, "move", "Move: drag the selected piece", "M12 2l4 4h-3v5h5V8l4 4-4 4v-3h-5v5h3l-4 4-4-4h3v-5H6v3l-4-4 4-4v3h5V6H8z");
 
         // Shapes dropdown in the toolbar, each shape has its own icon.
         MenuButton shapesButton = new MenuButton();
-        shapesButton.setGraphic(makeIcon("M3 3h8v8H3z M14 3a4 4 0 1 1 0 8a4 4 0 1 1 0-8z"));
+        shapesButton.setGraphic(ToolButtonFactory.makeIcon("M3 3h8v8H3z M14 3a4 4 0 1 1 0 8a4 4 0 1 1 0-8z"));
         shapesButton.setTooltip(new Tooltip("Choose a shape to draw"));
         String[][] shapes = {
             {"Square", "square", "M3 3h18v18H3z"},
@@ -265,7 +225,7 @@ public class Drawing {
         };
         for (String[] shape : shapes) {
             MenuItem shapeItem = new MenuItem(shape[0]);
-            shapeItem.setGraphic(makeIcon(shape[2]));
+            shapeItem.setGraphic(ToolButtonFactory.makeIcon(shape[2]));
             shapeItem.setOnAction(e -> setTool(shape[1]));
             shapesButton.getItems().add(shapeItem);
         }
@@ -307,7 +267,7 @@ public class Drawing {
                 saveUndoState();
                 startX = e.getX();
                 startY = e.getY();
-                shapeSnapshot = takeSnapshot();
+                shapePreview.begin();
             }
 
             // Sends selection mouse presses to Selection.java
@@ -417,7 +377,7 @@ public class Drawing {
 
             // Color grabber
             if (currentTool.equals("colorGrabber")) {
-                WritableImage image = takeSnapshot();
+                WritableImage image = CanvasSnapshots.capture(canvas);
                 PixelReader pixelReader = image.getPixelReader();
 
                 double scaleX = image.getWidth() / canvas.getWidth();
@@ -442,178 +402,73 @@ public class Drawing {
             }
         });
 
-        // Creates a drawing pane to organize the canvas and toolbar
+        // Group preserves pixel-perfect alignment between the drawing canvas and its selection overlay, including after a canvas resize.
+        Group canvasLayers = new Group(canvas, overlay);
+
+        // Center canvases smaller than the visible area. Keep the holder at least as large as the canvas so larger canvases still get scrollbars.
+        StackPane centeredCanvas = new StackPane(canvasLayers);
+        centeredCanvas.setAlignment(Pos.CENTER);
+        centeredCanvas.minWidthProperty().bind(canvas.widthProperty());
+        centeredCanvas.minHeightProperty().bind(canvas.heightProperty());
+
+        ScrollPane canvasScrollPane = new ScrollPane(centeredCanvas);
+        canvasScrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        canvasScrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        canvasScrollPane.setFitToWidth(true);
+        canvasScrollPane.setFitToHeight(true);
+        canvasScrollPane.setPannable(false);
+
+        // Toolbar remains visible while the canvas itself scrolls.
         drawingPane = new BorderPane();
         drawingPane.setTop(toolbar);
-        drawingPane.setCenter(new StackPane(canvas, overlay));
+        drawingPane.setCenter(canvasScrollPane);
     }
 
     /**
-     * Private method that draws a preview of the selected shape.
-     * @param curX the current x coordinate
-     * @param curY the current y coordinate
+     * Previews the shape while dragging.
+     * @param curX the current horizontal mouse position
+     * @param curY the current vertical mouse position
      */
     private void previewShape(double curX, double curY) {
-        if (shapeSnapshot != null) {
-            drawSnapshot(shapeSnapshot);
-        }
-
-        gc.setLineDashes(dashed ? new double[]{10, 10} : null);
-        gc.setStroke(colorPicker.getValue());
-
-        double x = Math.min(startX, curX);
-        double y = Math.min(startY, curY);
-        double w = Math.abs(curX - startX);
-        double h = Math.abs(curY - startY);
-
-        Shapes.drawShape(
-            gc,
-            currentTool,
-            x,
-            y,
-            w,
-            h,
-            numberOfSides,
-            numberOfStarPoints
-        );
-
-        gc.setLineDashes((double[]) null);
+        shapePreview.preview(startX, startY, curX, curY, dashed, colorPicker.getValue(), currentTool, numberOfSides, numberOfStarPoints);
     }
 
     /**
-     * Asks the user how many sides the polygon tool should draw.
+     * Asks the user for the number of polygon sides.
      */
     public void promptPolygonSides() {
-        TextInputDialog dialog =
-            new TextInputDialog(String.valueOf(numberOfSides));
-
-        dialog.setTitle("Polygon");
-        dialog.setHeaderText("Number of sides (3 or more):");
-
-        dialog.showAndWait().ifPresent(input -> {
-            try {
-                int sides = Integer.parseInt(input.trim());
-
-                if (sides >= 3) {
-                    numberOfSides = sides;
-                } else {
-                    showSidesError();
-                }
-            } catch (NumberFormatException ex) {
-                showSidesError();
-            }
-        });
+        numberOfSides = ShapePrompts.askPolygonSides(numberOfSides);
     }
 
     /**
-     * Asks the user how many points the star tool should draw.
+     * Asks the user for the number of star points.
      */
     public void promptStarPoints() {
-        TextInputDialog dialog =
-            new TextInputDialog(String.valueOf(numberOfStarPoints));
-
-        dialog.setTitle("Star");
-        dialog.setHeaderText("Number of points (4 or more):");
-
-        dialog.showAndWait().ifPresent(input -> {
-            try {
-                int points = Integer.parseInt(input.trim());
-
-                if (points >= 4) {
-                    numberOfStarPoints = points;
-                } else {
-                    showStarPointsError();
-                }
-            } catch (NumberFormatException ex) {
-                showStarPointsError();
-            }
-        });
+        numberOfStarPoints = ShapePrompts.askStarPoints(numberOfStarPoints);
     }
 
     /**
-     * Error box for a bad star point count.
+     * Asks to clear the canvas and saves its undo state.
      */
-    private void showStarPointsError() {
-        Alert alert = new Alert(Alert.AlertType.ERROR);
-        alert.setTitle("Invalid Points");
-        alert.setHeaderText("Invalid number of points");
-        alert.setContentText(
-            "Please enter a whole number that is 4 or more."
-        );
-        alert.showAndWait();
-    }
+    public void refresh() { canvasOperations.clearWithConfirmation(); }
 
     /**
-     * Error box for a bad polygon side count.
+     * Stores the current image in the undo history.
      */
-    private void showSidesError() {
-        Alert alert = new Alert(Alert.AlertType.ERROR);
-        alert.setTitle("Invalid Sides");
-        alert.setHeaderText("Invalid number of sides");
-        alert.setContentText(
-            "Please enter a whole number that is 3 or more."
-        );
-        alert.showAndWait();
-    }
+    private void saveUndoState() { canvasOperations.saveUndoState(); }
 
     /**
-     * Fills the whole canvas with white so it is a blank image.
+     * Restores the previous canvas state.
      */
-    private void fillWhite() {
-        gc.setFill(Color.WHITE);
-        gc.fillRect(0, 0, canvas.getWidth(), canvas.getHeight());
-    }
+    public void undo() { canvasOperations.undo(); }
 
     /**
-     * Refresh button to get rid of everything on the canvas.
-     * Also asks the user for confirmation first.
+     * Restores the next canvas state.
      */
-    public void refresh() {
-        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
-        alert.setTitle("Clear Canvas");
-        alert.setHeaderText("Are you sure?");
-        alert.setContentText("This will clear the entire canvas.");
-
-        Optional<ButtonType> result = alert.showAndWait();
-
-        if (result.isPresent() && result.get() == ButtonType.OK) {
-            saveUndoState();
-            selection.clearSelection();
-            fillWhite();
-            markChanged();
-            logAction("Canvas cleared");
-        }
-    }
+    public void redo() { canvasOperations.redo(); }
 
     /**
-     * Saves the current canvas onto the undo stack.
-     */
-    private void saveUndoState() {
-        history.saveState(canvas);
-    }
-
-    /**
-     * Public method that undoes the last action.
-     */
-    public void undo() {
-        history.undo(canvas);
-        selection.clearSelection();
-        logAction("Undo");
-        markChanged();
-    }
-
-    /**
-     * Public method that redoes the last undone action.
-     */
-    public void redo() {
-        history.redo(canvas);
-        selection.clearSelection();
-        logAction("Redo");
-        markChanged();
-    }
-
-    /**
-     * Public method that copies the current selection.
+     * Copies the currently selected image region.
      */
     public void copySelection() {
         selection.copySelection();
@@ -621,7 +476,7 @@ public class Drawing {
     }
 
     /**
-     * Public method that pastes the copied selection.
+     * Pastes the copied image region.
      */
     public void pasteSelection() {
         selection.pasteSelection();
@@ -630,152 +485,89 @@ public class Drawing {
     }
 
     /**
-     * Private method that clears the current selection.
-     */
-    private void clearSelection() {
-        selection.clearSelection();
-    }
-
-    /**
-     * Rotates the selected piece or the entire canvas.
-     * @param degrees clockwise angle in degrees
-     * @param selectedOnly true to change just a selection
+     * Rotates the whole canvas or the selected region.
+     * @param degrees clockwise rotation angle
+     * @param selectedOnly true to rotate only the selection
      */
     public void rotate(int degrees, boolean selectedOnly) {
-        if (selectedOnly && !selection.hasSelection()) return;
-        if (selectedOnly) {
-            selection.rotateSelected(degrees);
-        } else {
-            saveUndoState();
-            selection.clearSelection();
-            Rotation.rotateCanvas(canvas, degrees);
-            markChanged();
-        }
-        logAction("Rotate " + (selectedOnly ? "selection" : "canvas") + " " + degrees + " degrees");
+        Rotation.rotateDrawing(canvas, selection, history, this::markChanged, this::logAction, degrees, selectedOnly);
     }
 
     /**
-     * Flips the selected piece or the entire canvas.
-     * @param horizontal true for left/right, false for top/bottom
-     * @param selectedOnly true to change just a selection
+     * Flips the canvas or a selected region.
+     * @param horizontal true to flip left to right
+     * @param selectedOnly true to flip only the selection
      */
     public void flip(boolean horizontal, boolean selectedOnly) {
-        if (selectedOnly && !selection.hasSelection()) return;
-        if (selectedOnly) {
-            selection.flipSelected(horizontal);
-        } else {
-            saveUndoState();
-            selection.clearSelection();
-            Rotation.flipCanvas(canvas, horizontal);
-            markChanged();
-        }
-        logAction("Flip " + (selectedOnly ? "selection" : "canvas")
-                + (horizontal ? " horizontally" : " vertically"));
+        Rotation.flipDrawing(canvas, selection, history, this::markChanged, this::logAction, horizontal, selectedOnly);
     }
 
     /**
-     * Checks whether a selection exists in this drawing.
-     * @return true if there is a selected piece
+     * Checks whether an image region is selected.
+     * @return true if a selection exists
      */
     public boolean hasSelection() {
         return selection.hasSelection();
     }
 
     /**
-     * Sets the filename or tab name used when logging drawing events.
-     * @param source function that returns the current file or tab name
+     * Sets the name used in drawing event logs.
+     * @param source supplier of the current image or tab name
      */
     public void setLoggingSource(Supplier<String> source) {
         loggingSource = source == null ? () -> "new tab" : source;
     }
 
     /**
-     * Writes one user event to the background logging thread.
-     * @param action the user action to log
+     * Records an action in the event log.
+     * @param action the action description
      */
     private void logAction(String action) {
         Logging.log(loggingSource.get(), action);
     }
 
     /**
-     * Creates a small vector graphic for tool buttons.
-     * @param path the SVG path for the icon
-     * @return the icon used on the button
-     */
-    private SVGPath makeIcon(String path) {
-        SVGPath icon = new SVGPath();
-        icon.setContent(path);
-        icon.setFill(Color.web("#215f42"));
-        icon.setScaleX(0.85);
-        icon.setScaleY(0.85);
-        return icon;
-    }
-
-    /**
-     * Creates a drawing tool icon button with its hover tooltip.
-     * @param tool the drawing tool to activate
-     * @param tooltip text shown when the mouse is over the button
-     * @param path the SVG path for its icon
-     * @return the configured button
-     */
-    private Button createToolButton(String tool, String tooltip, String path) {
-        Button button = new Button();
-        button.setGraphic(makeIcon(path));
-        button.setTooltip(new Tooltip(tooltip));
-        button.setPrefSize(34, 34);
-        button.setMinSize(34, 34);
-        button.setOnAction(e -> setTool(tool));
-        return button;
-    }
-
-    /**
-     * Public method for setting the function that marks the drawing as changed.
-     * @param onChange the function called after a drawing change
+     * Sets the callback for drawing changes.
+     * @param onChange callback run after changes
      */
     public void setOnChange(Runnable onChange) {
         this.onChange = onChange == null ? () -> {} : onChange;
     }
 
     /**
-     * Private method that tells the tab when the canvas has changed.
+     * Notifies listeners that the drawing changed.
      */
     private void markChanged() {
         onChange.run();
     }
 
     /**
-     * Public method that gets the toolbar above the canvas.
-     * @return the toolbar for this drawing
+     * Returns the drawing toolbar.
+     * @return toolbar containing drawing tools
      */
     public HBox getToolbar() {
         return toolbar;
     }
 
     /**
-     * Public method for getting the DrawingPane.
-     * @return the drawing pane
+     * Returns the full drawing layout.
+     * @return the pane containing toolbar and canvas
      */
     public BorderPane getDrawingPane() {
         return drawingPane;
     }
 
     /**
-     * Public method for getting the canvas.
-     * @return the canvas
+     * Returns the active drawing canvas.
+     * @return canvas used for editing
      */
     public Canvas getCanvas() {
         return canvas;
     }
 
     /**
-     * Public method for loading an image after refreshing the canvas.
-     * @param image the image that is being loaded
+     * Loads an image onto the canvas.
+     * @param image the image to load
      */
-    public void loadImage(Image image) {
-        saveUndoState();
-        selection.clearSelection();
-        fillWhite();
-        gc.drawImage(image, 0, 0);
-        markChanged();
-    }
+    public void loadImage(Image image) { canvasOperations.loadImage(image); }
 }

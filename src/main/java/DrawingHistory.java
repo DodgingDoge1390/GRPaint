@@ -8,7 +8,7 @@ import javafx.scene.paint.Color;
 import javafx.scene.transform.Transform;
 
 /**
- * Public class that manages the undo and redo history for a drawing.
+ * Initializes the drawing history manager.
  */
 public class DrawingHistory {
     private record State(WritableImage image, double width, double height) {}

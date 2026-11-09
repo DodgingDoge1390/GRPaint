@@ -12,26 +12,20 @@ import javafx.stage.Screen;
  * pieces of the drawing in GRPaint.
  */
 public class Selection {
-
     private Canvas canvas;
     private GraphicsContext gc;
     private Canvas overlay;
     private GraphicsContext overlayGc;
-
     private WritableImage selectedImage;
     private WritableImage floatBase;
-
     private double selX, selY, selW, selH;
     private double selStartX, selStartY;
     private double moveGrabX, moveGrabY;
-
     private boolean selecting = false;
     private boolean moving = false;
     private boolean floating = false;
-
     private static WritableImage clipboardImage;
     private static double clipW, clipH;
-
     private Runnable saveUndo;
     private Runnable onChange;
 
@@ -90,8 +84,7 @@ public class Selection {
      */
     private void drawSnapshot(WritableImage image) {
         if (image != null) {
-            gc.drawImage(image, 0, 0,
-                         canvas.getWidth(), canvas.getHeight());
+            gc.drawImage(image, 0, 0, canvas.getWidth(), canvas.getHeight());
         }
     }
 
@@ -161,10 +154,8 @@ public class Selection {
     private void finishSelection(double endX, double endY) {
         double x0 = Math.max(0, Math.min(selStartX, endX));
         double y0 = Math.max(0, Math.min(selStartY, endY));
-        double x1 = Math.min(canvas.getWidth(),
-                             Math.max(selStartX, endX));
-        double y1 = Math.min(canvas.getHeight(),
-                             Math.max(selStartY, endY));
+        double x1 = Math.min(canvas.getWidth(), Math.max(selStartX, endX));
+        double y1 = Math.min(canvas.getHeight(), Math.max(selStartY, endY));
 
         if (x1 - x0 < 1 || y1 - y0 < 1) {
             clearSelection();

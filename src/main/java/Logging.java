@@ -10,8 +10,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Writes user events to a text file using a separate logging thread.
- * Each event is appended with the date, filename, time, and action.
+ * Initializes the logging class.
  */
 public class Logging {
     private static final Path LOG_FILE = Path.of("grpaint-events.log").toAbsolutePath();

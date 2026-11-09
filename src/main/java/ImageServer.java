@@ -11,7 +11,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
 /**
- * Public class that shares selected tab images through a small local web server.
+ * Initializes the local image server.
  */
 public class ImageServer {
     private HttpServer server;
